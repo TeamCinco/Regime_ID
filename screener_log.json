@@ -1,0 +1,9 @@
+{
+  "timestamp": "2026-02-20T11:19:31.238933",
+  "input_tickers": 4981,
+  "after_volume_filter": 569,
+  "final_equity_etfs": 130,
+  "min_avg_volume": 800000,
+  "min_aum": 0,
+  "runtime_seconds": 286.4
+}

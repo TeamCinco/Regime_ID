@@ -19,7 +19,7 @@ warnings.filterwarnings("ignore")
 # CONFIG
 # ============================================================
 
-ETF_FILE = "/Users/jazzhashzzz/Desktop/Regime_ID/etf_only.txt"
+ETF_FILE = "/Users/jazzhashzzz/Desktop/Regime_ID/etf_tickers.txt"
 BASE_OUTPUT = "/Users/jazzhashzzz/Desktop/Regime_ID/output"
 
 SHORT_LOOKBACK = 20

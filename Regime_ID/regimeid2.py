@@ -26,9 +26,9 @@ warnings.filterwarnings("ignore")
 ETF_FILE = "/Users/jazzhashzzz/Desktop/Regime_ID/etf_only.txt"
 BASE_OUTPUT = "/Users/jazzhashzzz/Desktop/Regime_ID/output"
 
-SHORT_LOOKBACK = 20
+SHORT_LOOKBACK = 30
 LONG_LOOKBACK = 100
-ACCEL_LOOKBACK = 5
+ACCEL_LOOKBACK = 20
 TRADING_DAYS = 252
 
 # ============================================================
