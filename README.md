@@ -150,6 +150,7 @@ If price is falling → bearish
 Measures how unstable price movement is.
 
 Low volatility → compression
+
 High volatility → expansion
 
 ---
@@ -159,6 +160,7 @@ High volatility → expansion
 Compares short-term volatility to long-term volatility.
 
 Short > Long → expansion
+
 Short < Long → compression
 
 ---
