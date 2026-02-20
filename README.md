@@ -1,15 +1,3 @@
-Perfect. Below is a **cleaner, slightly simplified, recruiter-friendly README** with:
-
-* Less heavy math
-* Clear explanations
-* Professional tone
-* A visual pipeline diagram (ASCII style so it renders cleanly on GitHub)
-* Image placeholders for V1 and V2 dashboards
-
-You can copy-paste this directly into `README.md`.
-
----
-
 # ETF Regime Engine
 
 ### Regime Identification & Volatility Transition Framework
@@ -308,7 +296,7 @@ This engine identifies those transitions before major moves occur.
 
 ---
 
-# Future Development
+# Future Possible Development
 
 * Single-stock regime scoring
 * Backtesting module
