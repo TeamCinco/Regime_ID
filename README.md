@@ -18,20 +18,33 @@ This project is designed to improve:
 
 ## V1 – Regime Classification
 
+This dashboard shows regime distribution, momentum structure, and sector composite strength.
 
-
-
-
+![V1 Dashboard](readme/regime_dashboard.png)
 
 ---
 
-## V2 – Regime + Shock Score
+## V2 – Institutional Dashboard (Regime + Shock Score)
 
-*(Insert image below)*
+This dashboard adds volatility transition detection and shock score analysis.
 
-```
-[ PLACE V2 DASHBOARD IMAGE HERE ]
-```
+![V2 Dashboard](readme/institutional_dashboard.png)
+
+---
+
+## Example Output Data
+
+Example ETF-level output with composite and shock scores:
+
+![ETF Output](readme/ETF_regime_result.png)
+
+---
+
+## Category Composite & Shock Score Summary
+
+Sector-level composite strength and volatility expansion probability:
+
+![Category Summary](readme/etf_composite.png)
 
 ---
 
