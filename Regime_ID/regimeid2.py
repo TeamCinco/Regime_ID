@@ -23,8 +23,8 @@ warnings.filterwarnings("ignore")
 # CONFIG
 # ============================================================
 
-ETF_FILE = "/Users/jazzhashzzz/Desktop/Screener For Spreads/etf_only.txt"
-BASE_OUTPUT = "/Users/jazzhashzzz/Desktop/Screener For Spreads/output"
+ETF_FILE = "/Users/jazzhashzzz/Desktop/Regime_ID/etf_only.txt"
+BASE_OUTPUT = "/Users/jazzhashzzz/Desktop/Regime_ID/output"
 
 SHORT_LOOKBACK = 20
 LONG_LOOKBACK = 100
