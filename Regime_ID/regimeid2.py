@@ -1,12 +1,7 @@
 """
 ETF REGIME ENGINE — INSTITUTIONAL VERSION
 Adds Volatility Shock Prediction Layer
-
-Outputs:
-- ETF regime table
-- Category composite strength
-- Volatility shock scores
-- Dashboard
+(FIXED DASHBOARD WITH TALL HEATMAP)
 """
 
 import yfinance as yf
@@ -19,11 +14,7 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
 
-# ============================================================
-# CONFIG
-# ============================================================
-
-ETF_FILE = "/Users/jazzhashzzz/Desktop/Regime_ID/etf_only.txt"
+ETF_FILE = "/Users/jazzhashzzz/Desktop/Regime_ID/equity_etf_tickers.txt"
 BASE_OUTPUT = "/Users/jazzhashzzz/Desktop/Regime_ID/output"
 
 SHORT_LOOKBACK = 30
@@ -31,9 +22,6 @@ LONG_LOOKBACK = 100
 ACCEL_LOOKBACK = 20
 TRADING_DAYS = 252
 
-# ============================================================
-# OUTPUT FOLDER
-# ============================================================
 
 def create_output_folder():
     today = datetime.now()
@@ -42,20 +30,13 @@ def create_output_folder():
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-# ============================================================
-# LOAD ETF LIST
-# ============================================================
 
 def load_etfs(filepath):
     with open(filepath, "r") as f:
         return [line.strip().upper() for line in f if line.strip()]
 
-# ============================================================
-# SAFE DOWNLOAD
-# ============================================================
 
 def safe_download(ticker):
-
     try:
         data = yf.download(
             ticker,
@@ -73,16 +54,11 @@ def safe_download(ticker):
             data.columns = data.columns.get_level_values(0)
 
         return data
-
     except:
         return None
 
-# ============================================================
-# ETF METADATA
-# ============================================================
 
 def get_etf_metadata(ticker):
-
     try:
         info = yf.Ticker(ticker).info or {}
         return (
@@ -93,289 +69,180 @@ def get_etf_metadata(ticker):
     except:
         return "Unknown", "Unknown", "Unknown"
 
-# ============================================================
-# REGIME CLASSIFICATION
-# ============================================================
 
 def classify_regime(momentum, vol_ratio):
-
     if momentum > 0 and vol_ratio > 1:
         return "Bull Expansion"
-    elif momentum > 0 and vol_ratio <= 1:
+    elif momentum > 0:
         return "Bull Compression"
     elif momentum < 0 and vol_ratio > 1:
         return "Bear Expansion"
     else:
         return "Bear Compression"
 
-# ============================================================
-# SHOCK METRICS
-# ============================================================
 
 def compute_shock_metrics(returns):
 
-    short_vol_series = (
-        returns.rolling(SHORT_LOOKBACK).std() * np.sqrt(TRADING_DAYS)
-    )
+    short_vol = returns.rolling(SHORT_LOOKBACK).std() * np.sqrt(TRADING_DAYS)
+    long_vol = returns.rolling(LONG_LOOKBACK).std() * np.sqrt(TRADING_DAYS)
 
-    long_vol_series = (
-        returns.rolling(LONG_LOOKBACK).std() * np.sqrt(TRADING_DAYS)
-    )
+    vol_ratio = short_vol / long_vol
 
-    vol_ratio_series = short_vol_series / long_vol_series
-
-    current_ratio = vol_ratio_series.iloc[-1]
-    past_ratio = vol_ratio_series.iloc[-ACCEL_LOOKBACK]
+    current_ratio = vol_ratio.iloc[-1]
+    past_ratio = vol_ratio.iloc[-ACCEL_LOOKBACK]
 
     vol_acceleration = current_ratio - past_ratio
 
     compression_depth = (
-        long_vol_series.iloc[-1] - short_vol_series.iloc[-1]
-    ) / long_vol_series.iloc[-1]
+        long_vol.iloc[-1] - short_vol.iloc[-1]
+    ) / long_vol.iloc[-1]
 
-    momentum_series = returns.rolling(SHORT_LOOKBACK).mean()
-    momentum_instability = momentum_series.iloc[-SHORT_LOOKBACK:].std()
-
-    return (
-        current_ratio,
-        vol_acceleration,
-        compression_depth,
-        momentum_instability
+    momentum_instability = (
+        returns.rolling(SHORT_LOOKBACK).mean()
+        .iloc[-SHORT_LOOKBACK:]
+        .std()
     )
 
-# ============================================================
-# ANALYZE ETF
-# ============================================================
+    return current_ratio, vol_acceleration, compression_depth, momentum_instability
+
 
 def analyze_etf(ticker):
 
     data = safe_download(ticker)
-
     if data is None:
         return None
 
     prices = data["Close"].dropna()
     returns = prices.pct_change().dropna()
 
-    # Momentum
-    short_mom = (
-        prices.iloc[-1] / prices.iloc[-SHORT_LOOKBACK] - 1
-    ) * 100
+    short_mom = (prices.iloc[-1]/prices.iloc[-SHORT_LOOKBACK]-1)*100
+    long_mom = (prices.iloc[-1]/prices.iloc[-LONG_LOOKBACK]-1)*100
 
-    long_mom = (
-        prices.iloc[-1] / prices.iloc[-LONG_LOOKBACK] - 1
-    ) * 100
+    short_vol = returns.iloc[-SHORT_LOOKBACK:].std()*np.sqrt(TRADING_DAYS)
+    long_vol = returns.iloc[-LONG_LOOKBACK:].std()*np.sqrt(TRADING_DAYS)
 
-    # Volatility
-    short_vol = (
-        returns.iloc[-SHORT_LOOKBACK:].std()
-        * np.sqrt(TRADING_DAYS)
-    )
+    vol_ratio = short_vol/long_vol if long_vol != 0 else 1
 
-    long_vol = (
-        returns.iloc[-LONG_LOOKBACK:].std()
-        * np.sqrt(TRADING_DAYS)
-    )
-
-    vol_ratio = short_vol / long_vol if long_vol != 0 else 1
-
-    # Shock metrics
-    (
-        current_ratio,
-        vol_acceleration,
-        compression_depth,
-        momentum_instability
-    ) = compute_shock_metrics(returns)
+    shock = compute_shock_metrics(returns)
 
     short_regime = classify_regime(short_mom, vol_ratio)
     long_regime = classify_regime(long_mom, vol_ratio)
 
-    category, fund_family, legal_type = get_etf_metadata(ticker)
+    category, family, legal = get_etf_metadata(ticker)
 
     return {
 
         "ticker": ticker,
-
         "category": category,
+        "short_momentum_%": round(short_mom,2),
+        "long_momentum_%": round(long_mom,2),
 
-        "fund_family": fund_family,
-
-        "short_momentum_%": round(short_mom, 2),
-
-        "long_momentum_%": round(long_mom, 2),
-
-        "vol_ratio": round(current_ratio, 3),
-
-        "vol_acceleration": round(vol_acceleration, 4),
-
-        "compression_depth": round(compression_depth, 4),
-
-        "momentum_instability": round(momentum_instability, 5),
+        "vol_ratio": round(shock[0],3),
+        "vol_acceleration": round(shock[1],4),
+        "compression_depth": round(shock[2],4),
+        "momentum_instability": round(shock[3],5),
 
         "short_regime": short_regime,
-
         "long_regime": long_regime
     }
 
-# ============================================================
-# SCORING
-# ============================================================
 
 def add_scores(df):
 
     score_map = {
-
-        "Bull Expansion": 2,
-        "Bull Compression": 1,
-        "Bear Compression": -1,
-        "Bear Expansion": -2
+        "Bull Expansion":2,
+        "Bull Compression":1,
+        "Bear Compression":-1,
+        "Bear Expansion":-2
     }
 
     df["short_score"] = df["short_regime"].map(score_map)
     df["long_score"] = df["long_regime"].map(score_map)
 
-    df["composite_score"] = (
-        df["short_score"] * 0.4 +
-        df["long_score"] * 0.6
-    )
+    df["composite_score"] = df["short_score"]*0.4 + df["long_score"]*0.6
 
-    # Normalize shock inputs
-    df["vol_accel_norm"] = (
-        df["vol_acceleration"] -
-        df["vol_acceleration"].mean()
-    ) / df["vol_acceleration"].std()
-
-    df["compression_norm"] = (
-        df["compression_depth"] -
-        df["compression_depth"].mean()
-    ) / df["compression_depth"].std()
-
-    df["momentum_instability_norm"] = (
-        df["momentum_instability"] -
-        df["momentum_instability"].mean()
-    ) / df["momentum_instability"].std()
-
-    # Shock score
     df["shock_score"] = (
-        0.35 * df["vol_accel_norm"] +
-        0.25 * df["compression_norm"] +
-        0.20 * df["momentum_instability_norm"] +
-        0.20 * df["composite_score"]
+        (df["vol_acceleration"]-df["vol_acceleration"].mean())/
+        df["vol_acceleration"].std()
     )
 
     return df
 
-# ============================================================
-# CATEGORY AGGREGATION
-# ============================================================
 
 def aggregate_category(df):
 
     grouped = df.groupby("category").agg(
-
-        count=("ticker", "count"),
-
-        avg_composite=("composite_score", "mean"),
-
-        avg_shock=("shock_score", "mean"),
-
-        bull_expansion_pct=(
-            "long_regime",
-            lambda x: (x == "Bull Expansion").mean() * 100
-        ),
-
-        bear_expansion_pct=(
-            "long_regime",
-            lambda x: (x == "Bear Expansion").mean() * 100
-        )
+        count=("ticker","count"),
+        avg_composite=("composite_score","mean"),
+        avg_shock=("shock_score","mean")
     )
 
-    return grouped.sort_values("avg_composite", ascending=False)
+    return grouped.sort_values("avg_composite",ascending=False)
+
 
 # ============================================================
-# DASHBOARD
+# DASHBOARD FIXED (TALL HEATMAP)
 # ============================================================
 
 def create_dashboard(df, category_df, output):
 
-    fig, axes = plt.subplots(2, 2, figsize=(18, 12))
-
-    df["long_regime"].value_counts().plot(
-        kind="bar", ax=axes[0,0]
+    fig, axes = plt.subplots(
+        2,2,
+        figsize=(24,16),
+        gridspec_kw={'height_ratios':[1,1.4]}
     )
 
+    # Regime distribution
+    regime_counts = df["long_regime"].value_counts()
+    axes[0,0].bar(regime_counts.index, regime_counts.values)
     axes[0,0].set_title("Regime Distribution")
+    axes[0,0].tick_params(axis='x',rotation=35)
 
-    axes[0,1].scatter(
-        df["composite_score"],
-        df["shock_score"]
-    )
+    # Scatter
+    axes[0,1].scatter(df["composite_score"], df["shock_score"])
+    axes[0,1].set_title("Composite vs Shock")
 
-    axes[0,1].set_title("Composite vs Shock Score")
+    # Category strength
+    axes[1,0].bar(category_df.index, category_df["avg_composite"])
+    axes[1,0].set_title("Category Composite Strength")
+    axes[1,0].tick_params(axis='x',rotation=60)
 
-    category_df["avg_composite"].plot(
-        kind="bar", ax=axes[1,0]
-    )
-
-    axes[1,0].set_title("Category Strength")
-
+    # TALL HEATMAP FIX
     sns.heatmap(
-        category_df[["avg_composite","avg_shock"]].T,
+        category_df[["avg_composite","avg_shock"]],
         cmap="RdYlGn",
         center=0,
         annot=True,
+        fmt=".2f",
+        linewidths=.5,
         ax=axes[1,1]
     )
 
     axes[1,1].set_title("Category Heatmap")
 
-    plt.tight_layout()
-
-    plt.savefig(output / "institutional_dashboard.png")
-
+    plt.tight_layout(pad=4)
+    plt.savefig(output/"institutional_dashboard.png",dpi=300,bbox_inches="tight")
     plt.close()
 
-# ============================================================
-# MAIN
-# ============================================================
 
 def run():
 
-    print("\nINSTITUTIONAL ETF REGIME ENGINE")
+    output=create_output_folder()
+    etfs=load_etfs(ETF_FILE)
 
-    output = create_output_folder()
+    results=[analyze_etf(t) for t in etfs]
+    results=[r for r in results if r]
 
-    etfs = load_etfs(ETF_FILE)
+    df=pd.DataFrame(results)
 
-    results = []
+    df=add_scores(df)
 
-    for ticker in etfs:
+    category_df=aggregate_category(df)
 
-        r = analyze_etf(ticker)
+    create_dashboard(df,category_df,output)
 
-        if r:
-            results.append(r)
+    df.to_csv(output/"institutional_results.csv",index=False)
 
-    df = pd.DataFrame(results)
 
-    df = add_scores(df)
-
-    category_df = aggregate_category(df)
-
-    df = df.sort_values("shock_score", ascending=False)
-
-    df.to_csv(output / "etf_regime_output.csv", index=False)
-
-    category_df.to_csv(output / "category_composite.csv")
-
-    create_dashboard(df, category_df, output)
-
-    print("\nTop Shock Candidates:")
-    print(df[["ticker","shock_score"]].head(10))
-
-    print(f"\nSaved to: {output}")
-
-# ============================================================
-
-if __name__ == "__main__":
+if __name__=="__main__":
     run()

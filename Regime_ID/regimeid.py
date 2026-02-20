@@ -3,6 +3,7 @@ ETF REGIME ENGINE
 Category-Based
 Composite Scoring
 Single Visual Dashboard Output
+(VERTICAL HEATMAP FIX)
 """
 
 import yfinance as yf
@@ -19,7 +20,7 @@ warnings.filterwarnings("ignore")
 # CONFIG
 # ============================================================
 
-ETF_FILE = "/Users/jazzhashzzz/Desktop/Regime_ID/etf_tickers.txt"
+ETF_FILE = "/Users/jazzhashzzz/Desktop/Regime_ID/equity_etf_tickers.txt"
 BASE_OUTPUT = "/Users/jazzhashzzz/Desktop/Regime_ID/output"
 
 SHORT_LOOKBACK = 20
@@ -180,47 +181,118 @@ def aggregate_by_category(df):
     return grouped.sort_values("avg_composite", ascending=False)
 
 # ============================================================
-# SINGLE DASHBOARD
+# SINGLE DASHBOARD (VERTICAL HEATMAP)
 # ============================================================
 
 def create_dashboard(df, category_df, output_path):
 
-    fig, axes = plt.subplots(2, 2, figsize=(18, 12))
+    category_df = category_df.sort_values("avg_composite", ascending=False)
+
+    fig, axes = plt.subplots(
+        2, 2,
+        figsize=(24, 16),
+        gridspec_kw={'height_ratios':[1, 1.4]}
+    )
 
     # 1. Long Regime Distribution
-    df["long_regime"].value_counts().plot(
-        kind="bar", ax=axes[0,0]
-    )
-    axes[0,0].set_title("Long-Term Regime Distribution")
-    axes[0,0].tick_params(axis='x', rotation=45)
+    ax = axes[0,0]
+
+    regime_counts = df["long_regime"].value_counts().reindex([
+        "Bull Expansion",
+        "Bull Compression",
+        "Bear Expansion",
+        "Bear Compression"
+    ])
+
+    ax.bar(regime_counts.index, regime_counts.values, width=0.6)
+
+    ax.set_title("Long-Term Regime Distribution", fontsize=14, fontweight='bold')
+    ax.set_xlabel("Regime")
+    ax.set_ylabel("Count")
+
+    ax.tick_params(axis='x', rotation=35, labelsize=11)
+
+    for label in ax.get_xticklabels():
+        label.set_horizontalalignment('right')
+
 
     # 2. Momentum Scatter
-    axes[0,1].scatter(df["short_momentum_%"], df["long_momentum_%"])
-    axes[0,1].axhline(0)
-    axes[0,1].axvline(0)
-    axes[0,1].set_title("Momentum Map")
-    axes[0,1].set_xlabel("Short Momentum %")
-    axes[0,1].set_ylabel("Long Momentum %")
+    ax = axes[0,1]
+
+    ax.scatter(
+        df["short_momentum_%"],
+        df["long_momentum_%"],
+        alpha=0.7
+    )
+
+    ax.axhline(0, linewidth=1)
+    ax.axvline(0, linewidth=1)
+
+    ax.set_title("Momentum Map", fontsize=14, fontweight='bold')
+    ax.set_xlabel("Short Momentum %")
+    ax.set_ylabel("Long Momentum %")
+
 
     # 3. Category Composite Strength
-    category_df["avg_composite"].plot(
-        kind="bar", ax=axes[1,0]
-    )
-    axes[1,0].set_title("ETF Category Composite Strength")
-    axes[1,0].tick_params(axis='x', rotation=45)
+    ax = axes[1,0]
 
-    # 4. Heatmap
+    ax.bar(
+        category_df.index,
+        category_df["avg_composite"],
+        width=0.7
+    )
+
+    ax.set_title("ETF Category Composite Strength", fontsize=14, fontweight='bold')
+    ax.set_ylabel("Composite Score")
+
+    ax.tick_params(axis='x', rotation=60, labelsize=10)
+
+    for label in ax.get_xticklabels():
+        label.set_horizontalalignment('right')
+
+    ax.margins(x=0.01)
+
+
+    # 4. Vertical Heatmap (FIXED)
+    ax = axes[1,1]
+
+    heatmap_data = category_df[["avg_composite"]]
+
     sns.heatmap(
-        category_df[["avg_composite"]].T,
+        heatmap_data,
         cmap="RdYlGn",
         center=0,
         annot=True,
-        ax=axes[1,1]
+        fmt=".2f",
+        annot_kws={"size":10},
+        linewidths=0.5,
+        cbar_kws={"shrink":0.8},
+        ax=ax
     )
-    axes[1,1].set_title("ETF Category Heatmap")
 
-    plt.tight_layout()
-    plt.savefig(output_path / "regime_dashboard.png")
+    ax.set_title("ETF Category Heatmap", fontsize=14, fontweight='bold')
+
+    ax.set_xticklabels(
+        ax.get_xticklabels(),
+        rotation=0,
+        fontsize=11
+    )
+
+    ax.set_yticklabels(
+        ax.get_yticklabels(),
+        rotation=0,
+        fontsize=9
+    )
+
+
+    plt.tight_layout(pad=4.0, w_pad=3.0, h_pad=3.0)
+
+    plt.savefig(
+        output_path / "regime_dashboard.png",
+        dpi=300,
+        bbox_inches="tight"
+    )
+
     plt.close()
 
 # ============================================================
@@ -253,11 +325,13 @@ def run_regime():
         return
 
     df = pd.DataFrame(results)
+
     df = add_composite_scores(df)
 
     category_df = aggregate_by_category(df)
 
     df.to_csv(output_path / "etf_regime_output.csv", index=False)
+
     category_df.to_csv(output_path / "category_composite.csv")
 
     create_dashboard(df, category_df, output_path)
@@ -265,6 +339,7 @@ def run_regime():
     print(f"\nAnalyzed ETFs: {len(df)}")
     print(f"Skipped: {skipped}")
     print(f"\nSaved to: {output_path}")
+
 
 if __name__ == "__main__":
     run_regime()
