@@ -14,8 +14,9 @@ from datetime import datetime
 import warnings
 warnings.filterwarnings("ignore")
 
-ETF_FILE = "/Users/jazzhashzzz/Desktop/Regime_ID/equity_etf_tickers.txt"
-BASE_OUTPUT = "/Users/jazzhashzzz/Desktop/Regime_ID/output"
+REPO_ROOT = Path(__file__).resolve().parent.parent
+ETF_FILE = REPO_ROOT / "equity_etf_tickers.txt"
+BASE_OUTPUT = REPO_ROOT / "output"
 
 SHORT_LOOKBACK = 30
 LONG_LOOKBACK = 100
