@@ -4,16 +4,22 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill
 from openpyxl.utils import get_column_letter
 
-OUTPUT_PATH = Path(__file__).resolve().parent / "bbg_index_members.xlsx"
+TEMPLATE_FOLDER = Path(__file__).resolve().parent
 INDEX_SLOTS = 6
 SNAPSHOT_COUNT = 48
 FIRST_INPUT_ROW = 11
-EXAMPLE_INDEXES = [
-    ("S5HLTH Index", "Health care"),
-    ("S5ENRS Index", "Energy"),
-    ("S5INSU Index", "Insurance"),
-    ("S5CONS Index", "Staples"),
-]
+WORKBOOK_INDEXES = {
+    "bbg_index_members.xlsx": [
+        ("S5HLTH Index", "Health care"),
+        ("S5ENRS Index", "Energy"),
+        ("S5INSU Index", "Insurance"),
+        ("S5CONS Index", "Staples"),
+    ],
+    "bbg_russell_style_members.xlsx": [
+        ("RLG Index", "Russell 1000 Growth"),
+        ("RLV Index", "Russell 1000 Value"),
+    ],
+}
 FIRST_SNAPSHOT_DATE = date(2015, 1, 1)
 MONTHS_BETWEEN_SNAPSHOTS = 3
 MEMBERS_FIELD = "INDX_MWEIGHT_HIST"
@@ -30,15 +36,20 @@ INPUT_FILL = PatternFill("solid", start_color="FFFF00")
 HEADER_FILL = PatternFill("solid", start_color="D9E1F2")
 
 
-def build_workbook():
+def build_workbooks():
+    for file_name, example_indexes in WORKBOOK_INDEXES.items():
+        build_workbook(TEMPLATE_FOLDER / file_name, example_indexes)
+
+
+def build_workbook(output_path, example_indexes):
     workbook = Workbook()
-    write_inputs_sheet(workbook.active)
+    write_inputs_sheet(workbook.active, example_indexes)
     write_members_sheet(workbook.create_sheet("Members"))
     write_notes_sheet(workbook.create_sheet("Notes"))
-    workbook.save(OUTPUT_PATH)
+    workbook.save(output_path)
 
 
-def write_inputs_sheet(sheet):
+def write_inputs_sheet(sheet, example_indexes):
     sheet.title = "Inputs"
     write_cell(sheet, "A1", "Bloomberg point-in-time index members", TITLE_FONT)
     write_cell(sheet, "A3", "First snapshot date", BOLD_FONT)
@@ -47,7 +58,7 @@ def write_inputs_sheet(sheet):
     write_input(sheet, "B4", MONTHS_BETWEEN_SNAPSHOTS)
     write_legend(sheet)
     write_snapshot_dates(sheet)
-    write_index_table(sheet)
+    write_index_table(sheet, example_indexes)
     sheet.column_dimensions["A"].width = 26
     sheet.column_dimensions["B"].width = 14
     sheet.column_dimensions["D"].width = 18
@@ -57,7 +68,7 @@ def write_inputs_sheet(sheet):
 
 def write_legend(sheet):
     lines = [
-        "Type Bloomberg index tickers and a peer group name in D11:E16 (yellow). Rows 11-14 are examples.",
+        "Type Bloomberg index tickers and a peer group name in D11:E16 (yellow). The filled rows are examples.",
         "Set the first date and spacing in B3:B4, then Bloomberg tab > Refresh Workbook.",
         "Each index gets one member list per snapshot date on the Members tab (dates after today stay blank).",
     ]
@@ -81,17 +92,17 @@ def snapshot_date_formula(row):
     return f"=EDATE(B{row - 1},$B$4)"
 
 
-def write_index_table(sheet):
+def write_index_table(sheet, example_indexes):
     for offset, header in enumerate(["Index", "Peer group", "Members tab column"]):
         write_cell(sheet, f"{get_column_letter(4 + offset)}10", header, BOLD_FONT).fill = HEADER_FILL
     for slot in range(INDEX_SLOTS):
-        write_index_row(sheet, slot)
+        write_index_row(sheet, slot, example_indexes)
     sheet.freeze_panes = "A11"
 
 
-def write_index_row(sheet, slot):
+def write_index_row(sheet, slot, example_indexes):
     row = FIRST_INPUT_ROW + slot
-    index_ticker, peer_group = EXAMPLE_INDEXES[slot] if slot < len(EXAMPLE_INDEXES) else (None, None)
+    index_ticker, peer_group = example_indexes[slot] if slot < len(example_indexes) else (None, None)
     write_input(sheet, f"D{row}", index_ticker)
     write_input(sheet, f"E{row}", peer_group)
     write_cell(sheet, f"F{row}", get_column_letter(block_first_column(slot, 0)))
@@ -135,7 +146,7 @@ def write_notes_sheet(sheet):
         f"{MEMBERS_FIELD} returns each member and its weight on the {DATE_OVERRIDE} date (yyyymmdd).",
         "Members come back as exchange tickers like 'UNH UN'; add ' Equity' to pull their data.",
         "Example indexes: S5HLTH = S&P 500 Health Care, S5ENRS = Energy, S5INSU = Insurance, "
-        "S5CONS = Consumer Staples. Confirm tickers on the index's DES page.",
+        "S5CONS = Consumer Staples, RLG / RLV = Russell 1000 Growth / Value. Confirm tickers on the DES page.",
         "Swap in any index (SPX Index, RIY Index, S5INFT Index) to change the universe.",
         "If a block stays blank after refresh, remove the IF( wrapper so the cell is just =BDS(...).",
         "Next step: the union of all members becomes the stock list for the factor vol template.",
@@ -168,4 +179,4 @@ def write_input(sheet, address, value):
 
 
 if __name__ == "__main__":
-    build_workbook()
+    build_workbooks()
