@@ -1,6 +1,5 @@
 """
 ETF REGIME ENGINE — INSTITUTIONAL VERSION
-Adds Volatility Shock Prediction Layer
 (FIXED DASHBOARD WITH TALL HEATMAP)
 """
 
@@ -20,7 +19,6 @@ BASE_OUTPUT = REPO_ROOT / "output"
 
 SHORT_LOOKBACK = 30
 LONG_LOOKBACK = 100
-ACCEL_LOOKBACK = 20
 TRADING_DAYS = 252
 
 
@@ -48,7 +46,7 @@ def safe_download(ticker):
             threads=False
         )
 
-        if data is None or len(data) < LONG_LOOKBACK + ACCEL_LOOKBACK:
+        if data is None or len(data) < LONG_LOOKBACK:
             return None
 
         if isinstance(data.columns, pd.MultiIndex):
@@ -82,31 +80,6 @@ def classify_regime(momentum, vol_ratio):
         return "Bear Compression"
 
 
-def compute_shock_metrics(returns):
-
-    short_vol = returns.rolling(SHORT_LOOKBACK).std() * np.sqrt(TRADING_DAYS)
-    long_vol = returns.rolling(LONG_LOOKBACK).std() * np.sqrt(TRADING_DAYS)
-
-    vol_ratio = short_vol / long_vol
-
-    current_ratio = vol_ratio.iloc[-1]
-    past_ratio = vol_ratio.iloc[-ACCEL_LOOKBACK]
-
-    vol_acceleration = current_ratio - past_ratio
-
-    compression_depth = (
-        long_vol.iloc[-1] - short_vol.iloc[-1]
-    ) / long_vol.iloc[-1]
-
-    momentum_instability = (
-        returns.rolling(SHORT_LOOKBACK).mean()
-        .iloc[-SHORT_LOOKBACK:]
-        .std()
-    )
-
-    return current_ratio, vol_acceleration, compression_depth, momentum_instability
-
-
 def analyze_etf(ticker):
 
     data = safe_download(ticker)
@@ -124,8 +97,6 @@ def analyze_etf(ticker):
 
     vol_ratio = short_vol/long_vol if long_vol != 0 else 1
 
-    shock = compute_shock_metrics(returns)
-
     short_regime = classify_regime(short_mom, vol_ratio)
     long_regime = classify_regime(long_mom, vol_ratio)
 
@@ -138,10 +109,7 @@ def analyze_etf(ticker):
         "short_momentum_%": round(short_mom,2),
         "long_momentum_%": round(long_mom,2),
 
-        "vol_ratio": round(shock[0],3),
-        "vol_acceleration": round(shock[1],4),
-        "compression_depth": round(shock[2],4),
-        "momentum_instability": round(shock[3],5),
+        "vol_ratio": round(vol_ratio,3),
 
         "short_regime": short_regime,
         "long_regime": long_regime
@@ -162,11 +130,6 @@ def add_scores(df):
 
     df["composite_score"] = df["short_score"]*0.4 + df["long_score"]*0.6
 
-    df["shock_score"] = (
-        (df["vol_acceleration"]-df["vol_acceleration"].mean())/
-        df["vol_acceleration"].std()
-    )
-
     return df
 
 
@@ -175,7 +138,7 @@ def aggregate_category(df):
     grouped = df.groupby("category").agg(
         count=("ticker","count"),
         avg_composite=("composite_score","mean"),
-        avg_shock=("shock_score","mean")
+        avg_vol_ratio=("vol_ratio","mean")
     )
 
     return grouped.sort_values("avg_composite",ascending=False)
@@ -200,8 +163,8 @@ def create_dashboard(df, category_df, output):
     axes[0,0].tick_params(axis='x',rotation=35)
 
     # Scatter
-    axes[0,1].scatter(df["composite_score"], df["shock_score"])
-    axes[0,1].set_title("Composite vs Shock")
+    axes[0,1].scatter(df["composite_score"], df["vol_ratio"])
+    axes[0,1].set_title("Composite vs Vol Ratio")
 
     # Category strength
     axes[1,0].bar(category_df.index, category_df["avg_composite"])
@@ -210,7 +173,7 @@ def create_dashboard(df, category_df, output):
 
     # TALL HEATMAP FIX
     sns.heatmap(
-        category_df[["avg_composite","avg_shock"]],
+        category_df[["avg_composite","avg_vol_ratio"]],
         cmap="RdYlGn",
         center=0,
         annot=True,
