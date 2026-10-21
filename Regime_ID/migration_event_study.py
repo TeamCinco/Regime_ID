@@ -46,6 +46,7 @@ WEEKS_AFTER = 52
 REVISION_WEEKS = 13
 SALES_REPORT_LAG_WEEKS = 9
 WEEKS_PER_YEAR = 52
+WEEK_ENDING = "W-FRI"
 REPORT_OFFSETS = [-52, -26, -13, 0, 13, 26, 52]
 EVENT_OFFSETS = np.arange(-WEEKS_BEFORE, WEEKS_AFTER + 1)
 
@@ -74,7 +75,11 @@ def read_field_panels(data_workbook: Path) -> dict[str, pd.DataFrame]:
     if not blocks:
         raise ValueError(f"No security blocks in {data_workbook} [{DATA_SHEET}]; refresh it on the terminal first")
     panels = {field: pd.DataFrame({security: block[field] for security, block in blocks.items()}) for field in FIELDS}
-    return {field: panel.sort_index().ffill() for field, panel in panels.items()}
+    return {field: on_weekly_calendar(panel) for field, panel in panels.items()}
+
+
+def on_weekly_calendar(panel: pd.DataFrame) -> pd.DataFrame:
+    return panel.sort_index().resample(WEEK_ENDING).last().ffill()
 
 
 def is_filled_security(security_cell) -> bool:
@@ -188,6 +193,7 @@ def stack_paths(paths: dict[str, np.ndarray], events: pd.DataFrame) -> pd.DataFr
         stacked[name] = matrix.ravel()
     stacked["security"] = stacked["event_id"].map(events["security"])
     stacked["revision_group"] = stacked["event_id"].map(events["revision_group"])
+    stacked["event_year"] = stacked["event_id"].map(events["event_date"].dt.year)
     return stacked
 
 
@@ -197,13 +203,23 @@ def summarize_paths(paths: pd.DataFrame) -> pd.DataFrame:
     summary = pd.DataFrame({
         "events": by_week["abnormal_return"].count(),
         "abnormal_return": by_week["abnormal_return"].mean(),
-        "t_stat": by_week["abnormal_return"].apply(t_stat),
+        "years": by_week[["abnormal_return", "event_year"]].apply(years_with_data),
+        "t_stat_by_year": by_week[["abnormal_return", "event_year"]].apply(t_stat_by_event_year),
         "ev_to_sales_change": by_week["ev_to_sales_change"].median(),
         "forward_pe_change": by_week["forward_pe_change"].median(),
         "implied_vol_change_pts": by_week["implied_vol_change_pts"].median(),
     })
     by_revision = at_report_weeks.pivot_table(index="week", columns="revision_group", values="abnormal_return")
     return summary.join(by_revision.add_prefix("abnormal_return, ")).round(4)
+
+
+def years_with_data(week_paths: pd.DataFrame) -> int:
+    return week_paths.dropna()["event_year"].nunique()
+
+
+def t_stat_by_event_year(week_paths: pd.DataFrame) -> float:
+    yearly_means = week_paths.dropna().groupby("event_year")["abnormal_return"].mean()
+    return t_stat(yearly_means)
 
 
 def t_stat(values: pd.Series) -> float:
