@@ -3,4 +3,5 @@ numpy
 pandas
 scipy
 matplotlib
-seaborn
+seaborntorch
+git+https://github.com/mistralai/timestral.git
